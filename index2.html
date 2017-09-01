@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>打飞机</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <style>
+    * {
+        margin: 0;
+        padding: 0;
+        font-family: 微软雅黑;
+        text-align: center;
+    }
+    #c1 {
+        /*background: url("image/bg_start.png");*/
+    }
+  </style>
+    <!--common-->
+    <script type="text/javascript">
+        function rand(n,m){return parseInt(n+Math.random()*(m-n))}
+        function d2a(n){return n*Math.PI/180}    //角度转弧度
+        function a2d(n){return n*180/Math.PI}
+        function drawArc(cx,cy,r,color,start,end){
+            start=start-90;
+            end=end-90;
+            o2d.strokeStyle=color;
+            o2d.arc(cx,cy,r,d2a(start),d2a(end),false);//轮廓
+            o2d.closePath();
+            o2d.stroke();
+        }
+        function fillzero(n){return n<10?'0'+n:''+n}
+    </script>
+    <!--resource资源-->
+    <script type="text/javascript">
+        var resource = ['gameArts']
+    </script>
+    <!--loadImage-->
+    <script type="text/javascript">
+        var JSON = {};
+        var loaded = 0;
+        function loadImage(resource,success,progress) {
+            for(let i = 0; i < resource.length; i++){
+                var oImg = new Image();
+                oImg.onload = function(){
+                    loaded++;               //一张图片加载完成时才+1
+                    JSON[resource[i]]=this;   //加载完成才将图片塞进JSON对象中 加载的图==this
+                    if(loaded == resource.length){
+                        success && success();
+                    }
+                    progress(loaded,resource.length);
+                }
+                oImg.src = 'image/' + resource[i] + '.png';
+            }
+        }
+    </script>
+    <!--地图背景-->
+    <script type="text/javascript">
+        class BgSet{
+            constructor(){
+                this.x=0;
+                this.y=0;
+                this.w=320;
+                this.h=568;
+                this.move();
+            }
+            draw(o2d){
+                o2d.save();
+                o2d.drawImage(JSON['gameArts'],
+                    0,0,this.w,this.h,
+                    this.x,this.y,this.w,this.h
+                );
+                o2d.restore();
+            }
+            move(){
+                setInterval(function () {
+                    this.y+=1;
+                    if(this.y >= 560){
+                        this.y= -560;
+                    }
+                }.bind(this),30)
+            }
+        }	
+    </script>
+    <!--我方飞机-->
+    <script type="text/javascript">
+        var MYPLANE=[
+            {x:432,y:0,w:66,h:82},
+            {x:432,y:82,w:66,h:84},
+            {x:432,y:164,w:66,h:84},
+            {x:432,y:246,w:66,h:84},
+            {x:432,y:326,w:66,h:84}
+        ]
+        class Myplane{
+            constructor(){
+                this.x=0;
+                this.y=0;
+                this.w=MYPLANE[0].w;
+                this.h=MYPLANE[0].h;
+                this.collR=MYPLANE[0].collR;
+                this.speed=1;
+                this.cur=0;
+                this.live=true;
+                this.timer=null;
+                this.move();
+            }
+            draw(o2d){
+                o2d.save();
+                o2d.drawImage(JSON['gameArts'],
+                    MYPLANE[0].x,83*this.cur,this.w,this.h,    //83是因为给的图片的间距不一样 有一点错位
+                    this.x,this.y,this.w,this.h
+                );
+                o2d.restore();
+            }
+            move(){
+                clearInterval(this.timer);
+                this.timer = setInterval(function () {  //火箭尾巴
+                    this.cur+=4;
+                    if(this.cur==8){this.cur=0}
+                }.bind(this),250);
+            }
+            emit(){
+
+            }
+        }
+    </script>
+    <!--敌方飞机-->
+    <script type="text/javascript">
+        var smallCells=[
+            {x:80,y:655,w:35,h:30},//正常飞行
+            {x:45,y:655,w:35,h:30},
+            {x:418,y:731,w:40,h:30},
+            {x:473,y:723,w:40,h:50}
+        ];
+        var middleCells=[
+            {x:0,y:569,w:46,h:60},//正常飞行
+            {x:432,y:413,w:46,h:61},
+            {x:432,y:538,w:46,h:63},
+            {x:432,y:599,w:46,h:58},
+            {x:432,y:478,w:46,h:59}
+        ];
+        var bigCells=[
+            {x:110,y:736,w:110,h:170},//正常飞行
+            {x:221,y:857,w:110,h:170},
+            {x:310,y:680,w:110,h:170},
+            {x:0,y:754,w:110,h:170},
+            {x:322,y:340,w:110,h:170},
+            {x:322,y:170,w:110,h:170},
+            {x:322,y:340,w:110,h:170},
+            {x:322,y:510,w:110,h:170},
+            {x:322,y:0,w:110,h:170}
+
+
+        ];
+        class Enemyfly{
+            constructor(EnemyObj){
+                this.EnemyObj=EnemyObj;
+                this.x=0;
+                this.y=0;
+                this.w=EnemyObj[0].w;
+                this.h=EnemyObj[0].h;
+                //this.collR=this.name[0].collR;
+                this.speed=1;
+                this.cur=0;
+                this.live=true;
+                this.timer=null;
+                this.move();
+            }
+            draw(o2d){
+                o2d.save();
+                o2d.drawImage(JSON['gameArts'],
+                    this.EnemyObj[0].x,this.EnemyObj[0].y,this.w,this.h,
+                    this.x,this.y,this.w,this.h
+                );
+                o2d.restore();
+            }
+            move(){
+                console.log(this.EnemyObj[0].x);
+                clearInterval(this.timer);
+                this.timer = setInterval(function () {
+                    this.y+=2;
+                }.bind(this),16);
+            }
+        }
+    </script>
+
+
+  <script>
+    window.onload = function () {
+        loadImage(resource,init,progress);
+        function progress(loaded,len) {
+            //console.log((loaded/len*100 ).toFixed(2)+ "%");
+        }
+        var oC = document.querySelector("#c1");
+        var o2d = oC.getContext('2d');
+        var arrBgset=[];//存背景
+
+        function init() {
+
+            for(var i = 0; i < 2; i++){ //实例地图
+                var bg = new BgSet();
+                bg.x=0;
+                bg.y= -bg.h*i;
+                arrBgset.push(bg);
+            }
+            var mp = new Myplane();  //实例我方飞机
+            mp.x=130;
+            mp.y=450;
+
+            var e = new Enemyfly(smallCells);   //实例敌机
+
+            setInterval(function () {
+                o2d.clearRect(0,0,oC.width,oC.height);
+                //绘制背景
+                for(var i = 0; i < arrBgset.length; i++){
+                    arrBgset[i].draw(o2d);
+                }
+                //绘制我方飞机
+                mp.draw(o2d);
+
+                //绘制敌机
+                e.draw(o2d);
+//                console.log(e);
+            },16);
+
+
+            
+            //鼠标滑过事件
+            oC.onmousemove=function (ev) {
+                var evt = ev || window.event;
+                var disX = evt.clientX - oC.offsetLeft;
+                var disY = evt.clientY - oC.offsetTop;
+                mp.x=disX - mp.w/2;
+                mp.y=disY - mp.h/2;
+            }
+
+
+        }
+
+    };
+  </script>
+</head>
+<body>
+<canvas id="c1" width="320" height="568"></canvas>
+</body>
+</html>

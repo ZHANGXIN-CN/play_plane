@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>打飞机</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            font-family: 微软雅黑;
+            text-align: center;
+        }
+
+        html {
+            background: url("image/16pic_4606305_b.jpg");
+        }
+
+        #c1 {
+            margin-top: 16px;
+            background: url("image/background_1.png");
+        }
+
+        .count {
+            position: fixed;
+            font: 700 20px/32px "";
+            color: #000;
+            width: 130px;
+            height: 32px;
+        }
+
+        #num {
+            top: 75px;
+            right: 80px;
+        }
+
+        #bNum {
+            top: 50px;
+            right: 80px;
+        }
+
+        .count em {
+            float: right;
+            width: 20px;
+            font-style: normal;
+            margin-left: 5px;
+        }
+    </style>
+    <!--common-->
+    <script type="text/javascript">
+        function rand(n, m) {
+            return parseInt(n + Math.random() * (m - n))
+        }
+
+        function d2a(n) {
+            return n * Math.PI / 180
+        }    //角度转弧度
+        function a2d(n) {
+            return n * 180 / Math.PI
+        }
+
+        function drawArc(cx, cy, r, color, start, end) {
+            start = start - 90;
+            end = end - 90;
+            o2d.strokeStyle = color;
+            o2d.arc(cx, cy, r, d2a(start), d2a(end), false);//轮廓
+            o2d.closePath();
+            o2d.stroke();
+        }
+
+        function fillzero(n) {
+            return n < 10 ? '0' + n : '' + n
+        }
+    </script>
+    <!--resource资源-->
+    <script type="text/javascript">
+        var resource = ['gameArts', 'bg_start']
+    </script>
+    <!--loadImage-->
+    <script type="text/javascript">
+        var JSON = {};
+        var loaded = 0;
+
+        function loadImage(resource, success, progress) {
+            for (let i = 0; i < resource.length; i++) {
+                var oImg = new Image();
+                oImg.onload = function () {
+                    loaded++;               //一张图片加载完成时才+1
+                    JSON[resource[i]] = this;   //加载完成才将图片塞进JSON对象中 加载的图==this
+                    if (loaded == resource.length) {
+                        success && success();
+                    }
+                    progress(loaded, resource.length);
+                }
+                oImg.src = 'image/' + resource[i] + '.png';
+            }
+        }
+    </script>
+    <!--地图背景-->
+    <script type="text/javascript">
+        class BgSet {
+            constructor() {
+                this.x = 0;
+                this.y = 0;
+                this.w = 320;
+                this.h = 568;
+                this.timer=null;
+                this.move();
+
+            }
+
+            draw(o2d) {
+                o2d.save();
+                o2d.drawImage(JSON['gameArts'],
+                    0, 0, this.w, this.h,
+                    this.x, this.y, this.w, this.h
+                );
+                o2d.restore();
+            }
+
+            move() {
+                this.timer=setInterval(function () {
+                    this.y++;
+                    if (this.y >= 567) {
+                        this.y = -568;
+                    }
+                }.bind(this), 16)
+            }
+        }
+    </script>
+    <!--我方飞机-->
+    <script type="text/javascript">
+        var MYPLANE = [
+            {x: 432, y: 0, w: 66, h: 82},
+            {x: 432, y: 82, w: 66, h: 84},
+            {x: 432, y: 164, w: 66, h: 84},
+            {x: 432, y: 246, w: 66, h: 84},
+            {x: 432, y: 326, w: 66, h: 84}
+        ];
+        class Myplane {
+            constructor() {
+                this.x = 0;
+                this.y = 0;
+                this.w = MYPLANE[0].w;
+                this.h = MYPLANE[0].h;
+                this.collR = 15;
+                this.speed = 1;
+                this.cur = 0;
+                this.live = true;
+                this.timer = null;
+                this.move();
+            }
+            draw(o2d) {
+                o2d.save();
+                o2d.drawImage(JSON['gameArts'],
+                    MYPLANE[0].x, 83 * this.cur, this.w, this.h,    //83是因为给的图片的间距不一样 有一点错位
+                    this.x, this.y, this.w, this.h
+                );
+                o2d.restore();
+            }
+            move() {
+                clearInterval(this.timer);
+                this.timer = setInterval(function () {  //火箭尾巴
+                    this.cur += 4;
+                    if (this.cur == 8) {
+                        this.cur = 0
+                    }
+                }.bind(this), 250);
+            }
+        }
+    </script>
+    <!--敌方飞机-->
+    <script type="text/javascript">
+        var ENEMYFLY = {
+            smallCells: [
+                {x: 80, y: 655, w: 35, h: 30},//正常飞行
+                {x: 45, y: 655, w: 35, h: 30},
+                {x: 418, y: 731, w: 40, h: 30},
+                {x: 473, y: 723, w: 40, h: 50}
+            ],
+            smallOption: {w: 40, h: 50, moveY: 3, hp: 1, score: 500},
+            middleCells: [
+                {x: 0, y: 569, w: 46, h: 60},//正常飞行
+                {x: 432, y: 413, w: 46, h: 61},
+                {x: 432, y: 538, w: 46, h: 63},
+                {x: 432, y: 599, w: 46, h: 58},
+                {x: 432, y: 478, w: 46, h: 59}
+            ],
+            middleOption: {w: 46, h: 63, moveY: 2, hp: 4, score: 1000},
+            bigCells: [
+                {x: 110, y: 736, w: 110, h: 170},//正常飞行
+                {x: 221, y: 857, w: 110, h: 170},
+                {x: 310, y: 680, w: 110, h: 170},
+                {x: 0, y: 754, w: 110, h: 170},
+                {x: 322, y: 340, w: 110, h: 170},
+                {x: 322, y: 170, w: 110, h: 170},
+                {x: 322, y: 340, w: 110, h: 170},
+                {x: 322, y: 510, w: 110, h: 170},
+                {x: 322, y: 0, w: 110, h: 170}
+            ],
+            bigOption: {w: 110, h: 170, moveY: 1, hp: 9, score: 2000}
+        };
+
+        class Enemyfly {
+            constructor(name) {
+                this.name = name;
+                this.x = 0;
+                this.y = 0;
+                this.moveY = ENEMYFLY[this.name + 'Option'].moveY;
+                this.hp = ENEMYFLY[this.name + 'Option'].hp;
+                this.score = ENEMYFLY[this.name + 'Option'].score;
+                this.w = ENEMYFLY[this.name + 'Cells'][0].w;
+                this.h = ENEMYFLY[this.name + 'Cells'][0].h;
+                this.collR = this.w / 2;
+                this.index = 1;
+                this.len = ENEMYFLY[this.name + 'Cells'].length;
+                this.live = true;
+                this.timer = null;
+                this.timer2 = null;
+                this.move();
+            }
+            draw(o2d) {
+                o2d.save();
+                var x = ENEMYFLY[this.name + 'Cells'][0].x; //正常飞行原图位置
+                var y = ENEMYFLY[this.name + 'Cells'][0].y;
+                var x2 = ENEMYFLY[this.name + 'Cells'][this.index].x;
+                var y2 = ENEMYFLY[this.name + 'Cells'][this.index].y;
+                var w2 = ENEMYFLY[this.name + 'Cells'][this.index].w;
+                var h2 = ENEMYFLY[this.name + 'Cells'][this.index].h;
+                if (this.live) {                                 //活着
+                    o2d.drawImage(JSON['gameArts'],
+                        x, y, this.w, this.h,
+                        this.x, this.y, this.w, this.h
+                    );
+                } else {
+                    o2d.drawImage(JSON['gameArts'],
+                        x2, y2, w2, h2,
+                        this.x, this.y, w2, h2
+                    );
+                }
+                o2d.restore();
+            }
+            move() {
+                clearInterval(this.timer);
+                clearInterval(this.timer2);
+                this.timer = setInterval(function () {
+                    this.y += this.moveY;
+                }.bind(this), 16);
+
+                this.timer2 = setInterval(function () {    //爆炸飞机的动画
+                    this.index++;
+                    if (this.index == this.len) {
+                        this.index = 1;
+                    }
+                }.bind(this), 250);
+            }
+
+            isIn(x, y,collR) {
+                var a = (this.x + this.w / 2) - x;
+                var b = (this.y + this.h / 2) - y;
+                var c = Math.sqrt(a * a + b * b);      //求出两个圆心的距离
+                if (c < (this.collR+collR)) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+        }
+    </script>
+    <!--子弹-->
+    <script type="text/javascript">
+        var bullet = [
+            {x: 499, y: 0, w: 5, h: 15}
+        ];
+
+        class Bullet {
+            constructor() {
+                this.x = 0;
+                this.y = 0;
+                this.w = bullet[0].w;
+                this.h = bullet[0].h;
+                this.speed = 1;
+                this.timer = null;
+                this.move();
+            }
+            draw(o2d) {
+                o2d.save();
+                o2d.drawImage(JSON['gameArts'],
+                    bullet[0].x, bullet[0].y, this.w, this.h,
+                    this.x, this.y, this.w, this.h
+                );
+                o2d.restore();
+            }
+            move() {
+                clearInterval(this.timer);
+                this.timer = setInterval(function () {
+                    this.y -= 5;
+                }.bind(this), 16);
+            }
+        }
+    </script>
+
+    <script>
+        window.onload = function () {
+            loadImage(resource, init, progress);
+
+            function progress(loaded, len) {
+                //console.log((loaded/len*100 ).toFixed(2)+ "%");
+            }
+
+            var oC = document.querySelector("#c1");
+            var oNum = document.querySelector(".num");
+            var oBNum = document.querySelector(".bNum");
+            var o2d = oC.getContext('2d');
+            var arrBgset = [];//存背景
+            var arrEnemys = [];//存敌机
+            var arrBullet = [];//存子弹
+            var arrBomb = [];//存爆炸的飞机
+            //加载成功回调函数
+            function init() {
+                var timerPlane=null;
+                //分数
+                var score = 0;
+                //计数
+                var mark = 0;
+                var mark1 = 0;
+
+                var oA=new Audio();    //背景音乐
+                var oABullt=new Audio();   //子弹音效
+                oA.loop=true;
+                oABullt.src='./snd/bullet.mp3';
+                oABullt.volume=0.5;
+                oABullt.loop=true;
+
+                o2d.font = '24px 微软雅黑';
+                o2d.drawImage(JSON.bg_start,
+                    0, 0, 320, 568,
+                    0, 0, 320, 568
+                );
+                o2d.strokeStyle = '#333';
+                o2d.strokeRect(60, 450, 200, 50);
+                o2d.fillText("开始游戏", 110, 485);
+                oC.onclick = function (ev) {
+                    var x = oC.offsetLeft + 60;
+                    var y = oC.offsetTop + 450;
+                    if (ev.clientX > x && ev.clientX < x + 200 && ev.clientY > y && ev.clientY < y + 50) {
+                        o2d.clearRect(0, 0, oC.width, oC.height);
+                        //清除点击事件
+                        oC.onclick=null;
+                        //点击开始游戏
+                        PlaneFight();
+                        oA.src='./snd/game_music.mp3';
+                        oA.play();
+                        oABullt.play();
+                    }
+                };
+
+                function PlaneFight() {
+                    for (var i = 0; i < 2; i++) { //实例地图
+                        var bg = new BgSet();
+                        bg.x = 0;
+                        bg.y = -bg.h * i;
+                        arrBgset.push(bg);
+                    }
+                    var mp = new Myplane();  //实例我方飞机
+                    clearInterval(mp.timer2);
+                    mp.x = 130;
+                    mp.y = 450;
+                    timerPlane=setInterval(function () {
+                        o2d.clearRect(0, 0, oC.width, oC.height);
+                        //绘制背景
+                        for (var i = 0; i < arrBgset.length; i++) {
+                            arrBgset[i].draw(o2d);
+                        }
+
+                        //绘制子弹
+                        for (var i = 0; i < arrBullet.length; i++) {
+                            arrBullet[i].draw(o2d);
+                        }
+
+                        //绘制我方飞机
+                        mp.draw(o2d);
+                        var pX = mp.x + mp.w/2;  //飞机坐标
+                        var pY = mp.y;
+
+                        mark++;
+                        if (mark == 50) {              //出机规则
+                            mark1++;
+                            //中飞机
+                            if (mark1 % 5 == 0) {
+                                var e = new Enemyfly('middle');
+                                clearInterval(e.timer2);
+                                e.x = rand(e.w, oC.width - e.w);
+                                e.y = -e.h;
+                                arrEnemys.push(e);
+                            }
+                            //大飞机
+                            if (mark1 == 20) {
+                                var e = new Enemyfly('big');
+                                clearInterval(e.timer2);
+                                e.x = rand(e.w, oC.width - e.w);
+                                e.y = -e.h;
+                                arrEnemys.push(e);
+                                mark1 = 0;
+                            }
+                            //小飞机
+                            else {
+                                var e = new Enemyfly('small');
+                                clearInterval(e.timer2);
+                                e.x = rand(e.w, oC.width - e.w);
+                                e.y = -e.h;
+                                arrEnemys.push(e);
+                            }
+                            mark = 0;
+                        }
+                        oNum.innerHTML = arrEnemys.length;
+                        oBNum.innerHTML = arrBullet.length;
+
+                        //绘制得分
+                        o2d.font = '18px 微软雅黑';
+                        o2d.fillText("得分:" + score + "", 10, 24);
+
+                        if (mark % 10 == 0) {    //出弹规则
+                            var b = new Bullet();
+                            b.x = pX;
+                            b.y = pY;
+                            arrBullet.push(b);
+                        }
+
+                        //绘制敌机
+                        for (var i = 0; i < arrEnemys.length; i++) {
+                            arrEnemys[i].draw(o2d);
+                        }
+                        for (var i = 0; i < arrEnemys.length; i++) {      //碰撞检测
+                            for (var j = 0; j < arrBullet.length; j++) {
+                                if (arrEnemys[i] && arrEnemys[i].live == true) {
+                                    if (arrEnemys[i].isIn(arrBullet[j].x, arrBullet[j].y, 0)) {
+                                        arrEnemys[i].hp--;
+                                        clearInterval(arrBullet[j].timer);
+                                        arrBullet.splice(j--, 1);
+                                        if (arrEnemys[i].hp == 0) {
+                                            var oABomb=new Audio();   //爆炸音效
+                                            oABomb.src='snd/'+ arrEnemys[i].name +'.mp3';
+                                            oABomb.play();
+                                            score += arrEnemys[i].score;
+                                            var bx = arrEnemys[i].x;
+                                            var by = arrEnemys[i].y;
+                                            var bname = arrEnemys[i].name;
+                                            clearInterval(arrEnemys[i].timer);
+                                            arrEnemys.splice(i--, 1);
+                                            var bfly = new Enemyfly(bname);     //实例爆炸的飞机
+                                            bfly.x = bx;
+                                            bfly.y = by;
+                                            bfly.live = false;
+                                            bfly.hp = 0;
+                                            bfly.score = 0;
+                                            arrBomb.push(bfly);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        for(var i = 0; i < arrEnemys.length; i++){    //我方飞机碰撞检测
+                            if (arrEnemys[i] && arrEnemys[i].live == true) {
+                                if (arrEnemys[i].isIn(mp.x+mp.w/2, mp.y+mp.h/2, mp.collR)) {
+                                    oABullt.pause();
+                                    oA.src='snd/game_over.mp3';
+                                    oA.play();
+                                    oA.loop=false;
+                                    o2d.strokeStyle = '#333';
+                                    o2d.fillStyle = '#cecece';
+                                    o2d.font = '20px 微软雅黑';
+                                    o2d.strokeRect(80, 200, 160, 160);
+                                    o2d.fillRect(80, 200, 160, 160);
+                                    o2d.fillStyle = '#333';
+                                    o2d.fillText('飞机大战分数',100,240);
+                                    o2d.fillText(score,125,320);
+                                    oC.onmousemove=null;
+                                    //清除敌机定时器
+                                    for(var i = 0; i < arrEnemys.length; i++){
+                                        clearInterval(arrEnemys[i].timer);
+                                        clearInterval(arrEnemys[i].timer2);
+                                    }
+                                    //清除背景定时器
+                                    for(var i = 0; i < arrBgset.length; i++){
+                                        clearInterval(arrBgset[i].timer);
+                                    }
+                                    //清除爆炸飞机定时器
+                                    for(var i = 0; i < arrBomb.length; i++){
+                                        clearInterval(arrBomb[i].timer);
+                                        clearInterval(arrBomb[i].timer2);
+                                    }
+                                    //清除子弹定时器
+                                    for(var i = 0; i < arrBullet.length; i++){
+                                        clearInterval(arrBullet[i].timer)
+                                    }
+                                    clearInterval(mp.timer);
+                                    clearInterval(timerPlane);
+                                }
+                            }
+                        }
+                        //绘制爆炸飞机
+                        for (let i = 0; i < arrBomb.length; i++) {
+                            arrBomb[i].draw(o2d);
+                            setTimeout(function () {
+                                if (arrBomb[0] && arrBomb[0].index == arrBomb[0].len - 1) {
+                                    clearInterval(arrBomb[0].timer);
+                                    clearInterval(arrBomb[0].timer2);
+                                    arrBomb.shift();
+                                }
+                            }, 500)
+                        }
+
+                        //敌机优化
+                        for (var i = 0; i < arrEnemys.length; i++) {
+                            if (arrEnemys[i].y > (oC.height + arrEnemys[i].h)) {
+                                clearInterval(arrEnemys[i].timer);
+                                arrEnemys.splice(i--, 1);
+                            }
+                        }
+                        //子弹优化
+                        for (var i = 0; i < arrBullet.length; i++) {
+                            if (arrBullet[i].y < -arrBullet[i].h) {
+                                clearInterval(arrBullet[i].timer);
+                                arrBullet.splice(i--, 1);
+                            }
+                        }
+
+                    }, 16);
+
+                    //鼠标滑过事件
+                    oC.onmousemove = function (ev) {
+                        var evt = ev || window.event;
+                        var disX = evt.clientX - oC.offsetLeft - mp.w / 2;
+                        var disY = evt.clientY - oC.offsetTop - mp.h / 2;
+                        if (disX <= 0) {
+                            disX = 0;
+                        }
+                        if (disY <= 0) {
+                            disY = 0;
+                        }
+                        if (disX > oC.width - mp.w) {
+                            disX = oC.width - mp.w;
+                        }
+                        if (disY > oC.height - mp.h) {
+                            disY = oC.height - mp.h;
+                        }
+
+                        mp.x = disX;
+                        mp.y = disY;
+                    }
+                }
+            }
+
+        };
+    </script>
+</head>
+<body>
+
+<canvas id="c1" width="320" height="568" onselectstart="return false;"></canvas>
+<span id="num" class="count" onselectstart="return false;">敌机个数:<em class="num"></em></span>
+<span id="bNum" class="count" onselectstart="return false;">子弹个数:<em class="bNum"></em></span>
+
+</body>
+</html>
